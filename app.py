@@ -127,6 +127,23 @@ def download_worker(job, url, quality):
         elif d["status"] == "error":
             job["failed"] += 1
 
+    class DownloadLogger:
+        last_error = None
+
+        def debug(self, _message):
+            pass
+
+        def warning(self, _message):
+            pass
+
+        def error(self, message):
+            # yt-dlp messages can contain full URLs; keep only a safe, useful reason.
+            message = re.sub(r"https?://\S+", "YouTube URL", str(message)).strip()
+            if message:
+                self.last_error = message[-500:]
+
+    logger = DownloadLogger()
+
     try:
         # 1) Fast metadata pass -> accurate total + playlist title.
         try:
@@ -163,6 +180,7 @@ def download_worker(job, url, quality):
             "writethumbnail": False,
             "embed_metadata": True,   # nice ID3 tags
             "retries": 3,
+            "logger": logger,
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
@@ -170,9 +188,11 @@ def download_worker(job, url, quality):
         # 3) Zip all produced mp3s.
         mp3s = sorted(glob.glob(os.path.join(job_dir, "*.mp3")))
         if not mp3s:
+            reason = logger.last_error
             raise RuntimeError(
-                "No MP3 files were produced. The playlist may be empty, private, "
-                "age-restricted, or blocked by YouTube (may need cookies)."
+                (("YouTube/yt-dlp reported: " + reason + ". ") if reason else "")
+                + "No MP3 files were produced. The playlist may be empty, private, "
+                "age-restricted, or blocked by YouTube."
             )
         zip_path = os.path.join(
             DOWNLOADS_DIR, f"{sanitize(job['title'])}-{job['id']}.zip"

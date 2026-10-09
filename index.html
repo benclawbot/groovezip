@@ -63,7 +63,6 @@
   #download-link{display:none; align-items:center; gap:12px; margin-top:14px;}
   #download-link a{background:var(--org); color:#1d1206; text-decoration:none; font-weight:900; padding:14px 22px; border-radius:14px;}
   #download-link a:hover{background:var(--org-2);}
-  #toggle, #pl-info{display:none;}
   .ft{text-align:center; color:#594f6b; font-size:12.5px; margin-top:30px; line-height:1.7;}
   .ft a{color:var(--mut); text-decoration:none;} .ft a:hover{color:var(--org);}
 </style>
@@ -94,7 +93,7 @@
     <h1>Rip the <b>whole playlist</b></h1>
     <p class="sub">Paste a YouTube playlist → every track saved as MP3, zipped, yours.</p>
     <div class="form">
-      <input type="url" id="url" placeholder="https://youtube.com/playlist?list=PLOBEuByax3HQZXEdaXUhB6jjviWXxvgRk" autocomplete="off">
+      <input type="url" id="url" placeholder="Paste a YouTube playlist or video URL" aria-label="YouTube playlist or video URL" autocomplete="off">
       <select id="quality" title="MP3 bitrate">
         <option value="128">128 kbps</option><option value="192" selected>192 kbps</option>
         <option value="256">256 kbps</option><option value="320">320 kbps</option>
@@ -136,7 +135,7 @@ async function check(){
   $("check-btn").disabled=true; $("check-btn").textContent="Checking…";
   try{
     const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url}) });
-    const d = await res.json();
+    const d = await readJson(res);
     if(!res.ok || d.error) throw new Error(d.error || "HTTP "+res.status);
     currentUrl = url;
     $("pl-title").textContent = d.title || "(unknown)";
@@ -150,14 +149,31 @@ async function check(){
 }
 
 async function startDownload(){
-  const url = currentUrl || $("url").value.trim();
+  const url = $("url").value.trim();
   if(!url) return showError("Please paste a URL.");
   showError(""); currentUrl = url;
-  $("dl-btn").disabled = true; $("pl-info").classList.remove("hidden"); $("preview").classList.add("hidden");
-  const res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10) }) });
-  const d = await res.json();
-  if(!res.ok || d.error){ showError("Failed to start: "+(d.error||res.status)); $("dl-btn").disabled=false; return; }
-  poll(d.id);
+  $("dl-btn").disabled = true; $("dl-btn").textContent = "Starting…";
+  $("progress").classList.remove("hidden");
+  $("stat-text").textContent = "Starting download…"; $("stat-extra").textContent = "";
+  $("current").textContent = ""; $("bar-fill").style.width = "0%";
+  $("download-link").style.display = "none";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+    let res;
+    try {
+      res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10) }), signal: controller.signal });
+    } finally { clearTimeout(timeout); }
+    const d = await readJson(res);
+    if(!res.ok || d.error) throw new Error(d.error || "Server returned HTTP " + res.status);
+    if(!d.id) throw new Error("Server did not return a download job ID.");
+    $("dl-btn").textContent = "Download ZIP";
+    poll(d.id);
+  } catch(err) {
+    $("stat-text").textContent = "Could not start download";
+    showError("Failed to start download: " + (err.name === "AbortError" ? "The server took too long to respond. Please try again." : err.message));
+    $("dl-btn").disabled = false; $("dl-btn").textContent = "⬇ Download ZIP";
+  }
 }
 $("dl-btn").onclick = startDownload;
 
@@ -166,10 +182,14 @@ function poll(jobId){
   $("stat-text").textContent="Starting…"; $("stat-extra").textContent=""; $("current").textContent="";
   $("bar-fill").style.width="0%";
   $("download-link").style.display="none";
+  let polling = false;
   const t = setInterval(async ()=>{
+    if (polling) return;
+    polling = true;
     try{
       const res = await fetch("/api/status?id="+encodeURIComponent(jobId));
-      const j = await res.json();
+      const j = await readJson(res);
+      if (!res.ok) throw new Error(j.error || "Server returned HTTP " + res.status);
       if(j.error) throw new Error(j.error);
       const tot = j.total || 0, done = j.completed;
       $("bar-fill").style.width = Math.min(100, tot ? Math.round(done/tot*100) : 0) + "%";
@@ -181,10 +201,15 @@ function poll(jobId){
         $("stat-text").textContent = "Done — "+done+" MP3"+(done>1?"s":"");
         $("zip-meta").textContent = j.zip_size ? " · "+(j.zip_size/1048576).toFixed(1)+" MB" : "";
         $("zip-href").href = "/api/zip?id="+encodeURIComponent(jobId);
-        $("download-link").style.display = "flex"; $("dl-btn").disabled=false;
-      } else if(j.state==="error"){ clearInterval(t); $("stat-text").textContent="Error"; showError("Download failed: "+(j.error||"unknown")); $("dl-btn").disabled=false; }
-    }catch(err){ clearInterval(t); showError("Status: "+err.message); $("dl-btn").disabled=false; }
+        $("download-link").style.display = "flex"; $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP";
+      } else if(j.state==="error"){ clearInterval(t); $("stat-text").textContent="Error"; showError("Download failed: "+(j.error||"unknown")); $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP"; }
+    }catch(err){ clearInterval(t); showError("Could not check download status: "+err.message); $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP"; }
+    finally { polling = false; }
   }, 1000);
+}
+async function readJson(res){
+  try { return await res.json(); }
+  catch (_) { throw new Error("Server returned an unreadable response. Please try again."); }
 }
 function esc(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 </script>

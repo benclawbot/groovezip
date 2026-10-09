@@ -129,6 +129,34 @@ class AppTests(unittest.TestCase):
                         self.assertEqual(archive.read("1 - Song.mp3"), job["dir"].encode())
                 self.assertNotEqual(first["zipfile"], second["zipfile"])
 
+    def test_download_preserves_sanitized_ytdlp_failure_reason(self):
+        class FailingDownloader:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def download(self, _urls):
+                self.options["logger"].error(
+                    "Video unavailable: https://youtube.com/watch?v=abc&token=secret"
+                )
+
+        with tempfile.TemporaryDirectory() as downloads:
+            with patch.object(app, "DOWNLOADS_DIR", downloads), patch.object(
+                app, "flat_info", return_value={"title": "Unavailable"}
+            ), patch.object(app.yt_dlp, "YoutubeDL", FailingDownloader):
+                job = app.new_job("failed")
+                app.download_worker(job, "https://youtube.com/watch?v=abc", 192)
+        self.assertEqual(job["state"], "error")
+        self.assertIn("Video unavailable", job["error"])
+        self.assertIn("No MP3 files were produced", job["error"])
+        self.assertNotIn("secret", job["error"])
+        self.assertNotIn("?v=abc", job["error"])
+
 
 if __name__ == "__main__":
     unittest.main()
