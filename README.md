@@ -31,7 +31,12 @@ supported as a legacy port setting.
 ## Host with Docker
 
 The image includes Python, ffmpeg, yt-dlp with its challenge-solver dependencies,
-and Node.js 22 for YouTube's JavaScript challenges. Build and run it with:
+Node.js 26 for YouTube's JavaScript challenges, and the pinned bgutil proof-of-
+origin token provider. The provider listens only on container loopback and starts
+with the app. It generates anonymous tokens; it does not use account cookies or
+OAuth. YouTube can still block requests based on the host's IP or change its
+checks, so this cannot guarantee that every playlist downloads. Build and run it
+with:
 
 ```bash
 docker build -t groovezip .
@@ -39,14 +44,16 @@ docker run --rm -p 8787:8787 -e HOST=0.0.0.0 -e PORT=8787 groovezip
 ```
 
 For a hosting platform, configure its assigned port as `PORT` and publish that
-container port. The app provides `/health` and `/healthz` for health checks.
+container port. The app provides `/health` and `/healthz` for health checks. The
+POT provider's `/ping` endpoint is available only inside the container at
+`127.0.0.1:4416`.
 Downloaded files are stored in `/app/downloads` inside the container; mount a
 volume there if jobs must survive container replacement. Supply a persistent
 volume with enough free space for downloads and ZIP output.
 
-The app is prepared for deployment but is not currently deployed. On Render,
-create a Docker Web Service from this repository, choose the Free plan for a
-deployment without a hosting charge, and set the health check to `/health`.
+The app is deployed at https://groovezip.onrender.com/ on Render's Free plan.
+To deploy another instance, create a Docker Web Service from this repository,
+choose the Free plan and set the health check to `/health`.
 Free instances sleep after inactivity and lose temporary downloads on restart.
 Jobs are kept in memory, so use a single instance; a persistent file volume
 does not preserve the job registry across restarts.
@@ -60,8 +67,11 @@ does not preserve the job registry across restarts.
 4. Click **Download ZIP** — watch progress live.
 5. When finished, click **Save the ZIP**.
 
-The ZIP is downloaded through the browser button. Local runs store job files in
-`downloads/` next to the app; Docker runs store them in `/app/downloads`.
+The ZIP is downloaded through the browser button. Temporary audio and fragment
+files are deleted when archiving finishes. The ZIP and job record are deleted
+after a completed download transfer; interrupted transfers retain the ZIP so
+you can retry. To download a completed archive again, create a new job.
+Local runs use `downloads/` next to the app; Docker runs use `/app/downloads`.
 
 ## API (in case you want to script it)
 
@@ -79,10 +89,11 @@ The API accepts HTTPS video or playlist URLs on YouTube's `youtube.com`,
 ## Notes & troubleshooting
 
 - **`pip install yt-dlp` missing** → run it first.
-- **"No MP3 files were produced"** → the playlist is private, age-restricted, or
-  blocked by YouTube. For private/age-restricted lists, export your browser's
-  cookies: `pip install yt-dlp[default]`, then add `"cookiefile": "cookies.txt"` to
-  the options in `app.py`.
-- Background downloads are stored in `youtube-playlist-downloader/downloads/`.
-  Delete files there whenever you like.
+- **"No MP3 files were produced"** → the playlist may be private,
+  age-restricted, or blocked by YouTube. The hosted Docker image starts the free
+  anonymous POT provider automatically, but YouTube may still require sign-in or
+  block the hosting IP. A local source checkout without the bundled provider
+  remains usable and reports that token support is unavailable.
+- ZIPs that have not yet been downloaded remain in `downloads/` until transfer
+  completion or the host restarts.
 - Change the port: `PORT=9000 python3 app.py` (or legacy `YTD_PORT=9000`).

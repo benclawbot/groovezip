@@ -7,7 +7,9 @@ Paste a playlist (or single video) URL, click Download, and the app:
   2. downloads each track and converts it to MP3 (via yt-dlp + ffmpeg),
   3. packages every MP3 into a single ZIP file and offers it for download.
 
-Nothing leaves your machine; run it locally.
+Run locally or on a Docker host. Media is fetched by the server and delivered
+to your browser. Temporary track files are removed after archiving; the ZIP is
+removed after its completed HTTP download transfer.
 
 Usage:
     python3 app.py            # then open http://127.0.0.1:8787
@@ -19,12 +21,15 @@ import json
 import os
 import re
 import shutil
+import signal
+import subprocess
 import time
 import uuid
 import zipfile
 import threading
 from urllib.parse import quote, unquote, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.request import urlopen
 
 try:
     import yt_dlp
@@ -35,6 +40,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", os.environ.get("YTD_PORT", "8787")))
+POT_PROVIDER_URL = "http://127.0.0.1:4416"
+POT_PROVIDER_ENTRYPOINT = os.path.join(BASE_DIR, "bgutil-provider", "build", "main.js")
+POT_PROVIDER_PROCESS = None
+YOUTUBE_EXTRACTOR_ARGS = {
+    "youtube": {"player_client": ["mweb", "tv", "web_safari"]},
+    "youtubepot-bgutilhttp": {"base_url": [POT_PROVIDER_URL]},
+}
 
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
@@ -49,7 +61,58 @@ CHECK_OPTS = {
     "no_warnings": True,
     "extract_flat": True,
     "js_runtimes": {"node": {}},
+    "extractor_args": YOUTUBE_EXTRACTOR_ARGS,
 }
+
+
+def start_pot_provider():
+    """Start the bundled anonymous POT service when this image includes it."""
+    global POT_PROVIDER_PROCESS
+    if not os.path.isfile(POT_PROVIDER_ENTRYPOINT):
+        print(
+            "POT provider is not bundled; local mode will continue without anonymous "
+            "YouTube tokens. yt-dlp may report YouTube sign-in or bot checks.",
+            flush=True,
+        )
+        return None
+
+    POT_PROVIDER_PROCESS = subprocess.Popen(
+        ["node", POT_PROVIDER_ENTRYPOINT, "--host", "127.0.0.1"],
+        cwd=os.path.dirname(POT_PROVIDER_ENTRYPOINT),
+    )
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if POT_PROVIDER_PROCESS.poll() is not None:
+            exit_code = POT_PROVIDER_PROCESS.returncode
+            POT_PROVIDER_PROCESS = None
+            raise RuntimeError(
+                f"POT provider exited during startup (code {exit_code})"
+            )
+        try:
+            with urlopen(f"{POT_PROVIDER_URL}/ping", timeout=1) as response:
+                if response.status == 200:
+                    print("Anonymous YouTube POT provider is ready.", flush=True)
+                    return POT_PROVIDER_PROCESS
+        except Exception:
+            time.sleep(0.25)
+
+    stop_pot_provider()
+    raise RuntimeError("POT provider did not become healthy at /ping within 15 seconds")
+
+
+def stop_pot_provider():
+    """Stop the child service cleanly before the app process exits."""
+    global POT_PROVIDER_PROCESS
+    if POT_PROVIDER_PROCESS is None:
+        return
+    if POT_PROVIDER_PROCESS.poll() is None:
+        POT_PROVIDER_PROCESS.terminate()
+        try:
+            POT_PROVIDER_PROCESS.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            POT_PROVIDER_PROCESS.kill()
+            POT_PROVIDER_PROCESS.wait(timeout=5)
+    POT_PROVIDER_PROCESS = None
 
 
 def sanitize(name):
@@ -107,6 +170,7 @@ def new_job(job_id):
         "zip_size": None,
         "dir": os.path.join(DOWNLOADS_DIR, job_id),
         "created": time.time(),
+        "_zip_lock": threading.Lock(),
     }
     return job
 
@@ -134,7 +198,11 @@ def download_worker(job, url, quality):
             pass
 
         def warning(self, _message):
-            pass
+            message = str(_message)
+            if "bgutil" in message.lower() or "po token" in message.lower():
+                message = re.sub(r"https?://\S+", "YouTube URL", message).strip()
+                if message:
+                    self.last_error = message[-500:]
 
         def error(self, message):
             # yt-dlp messages can contain full URLs; keep only a safe, useful reason.
@@ -143,6 +211,7 @@ def download_worker(job, url, quality):
                 self.last_error = message[-500:]
 
     logger = DownloadLogger()
+    zip_path = None
 
     try:
         # 1) Fast metadata pass -> accurate total + playlist title.
@@ -161,6 +230,7 @@ def download_worker(job, url, quality):
         # 2) Download every track -> mp3.
         opts = {
             "js_runtimes": {"node": {}},
+            "extractor_args": YOUTUBE_EXTRACTOR_ARGS,
             "format": "bestaudio/best",
             "postprocessors": [
                 {
@@ -202,10 +272,20 @@ def download_worker(job, url, quality):
                 zf.write(m, os.path.basename(m))
         job["zipfile"] = zip_path
         job["zip_size"] = os.path.getsize(zip_path)
+        # The archive now owns the complete output; raw audio and fragments
+        # need not occupy disk while the user downloads it.
+        shutil.rmtree(job_dir)
         job["state"] = "done"
     except Exception as exc:  # noqa: BLE001
         job["state"] = "error"
         job["error"] = str(exc)
+        try:
+            if os.path.isdir(job_dir):
+                shutil.rmtree(job_dir)
+            if zip_path and os.path.isfile(zip_path):
+                os.remove(zip_path)
+        except OSError as cleanup_error:
+            print(f"Could not clean failed job {job['id']}: {cleanup_error}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +328,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _send_zip(self, job):
+        # Each ZIP is transferred once. Keep it on disk after a broken
+        # connection, and prevent concurrent transfers from racing cleanup.
+        lock = job["_zip_lock"]
+        if not lock.acquire(blocking=False):
+            return self._send_json({"error": "ZIP download already in progress"}, 409)
+        try:
+            self._transfer_zip(job)
+        finally:
+            lock.release()
+
+    def _transfer_zip(self, job):
         path = job.get("zipfile")
         if not path or not os.path.isfile(path):
             self._send_json({"error": "ZIP not ready yet"}, 404)
@@ -264,8 +355,21 @@ class Handler(BaseHTTPRequestHandler):
         )
         self.send_header("Content-Length", str(size))
         self.end_headers()
-        with open(path, "rb") as f:
-            shutil.copyfileobj(f, self.wfile)
+        try:
+            with open(path, "rb") as f:
+                shutil.copyfileobj(f, self.wfile)
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return  # Preserve the ZIP for a retry.
+        try:
+            os.remove(path)
+            if os.path.isdir(job["dir"]):
+                shutil.rmtree(job["dir"])
+        except OSError as cleanup_error:
+            print(f"Could not clean downloaded job {job['id']}: {cleanup_error}", flush=True)
+            return
+        with JOBS_LOCK:
+            JOBS.pop(job["id"], None)
 
     # -- routes ---------------------------------------------------------------
     def do_GET(self):
@@ -397,13 +501,21 @@ def main():
     print(f"  Open in your browser:  http://{HOST}:{PORT}")
     print("  Stop with Ctrl+C")
     print("-" * 60)
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    def handle_sigterm(_signum, _frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    server = None
     try:
+        start_pot_provider()
+        server = ThreadingHTTPServer((HOST, PORT), Handler)
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nBye!")
     finally:
-        server.server_close()
+        if server is not None:
+            server.server_close()
+        stop_pot_provider()
 
 
 if __name__ == "__main__":

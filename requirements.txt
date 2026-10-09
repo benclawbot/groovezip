@@ -1,1 +1,2 @@
 yt-dlp[default]
+bgutil-ytdlp-pot-provider==2.0.2

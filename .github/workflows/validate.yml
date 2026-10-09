@@ -23,11 +23,14 @@ jobs:
           docker run --rm groovezip:test node --version
           docker run --rm groovezip:test ffmpeg -version
           docker run -d --name groovezip-test -p 8787:8787 groovezip:test
+          trap 'docker rm -f groovezip-test >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail http://127.0.0.1:8787/health; then
-              exit 0
+              break
             fi
             sleep 1
           done
+          curl --fail http://127.0.0.1:8787/health
+          docker exec groovezip-test python -c 'import json, urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:4416/ping")); assert data["version"] == "2.0.2", data'
+          docker exec groovezip-test python -c 'from yt_dlp.plugins import load_all_plugins; from yt_dlp.extractor.youtube.pot._registry import _pot_providers; load_all_plugins(); provider=_pot_providers.value["BgUtilHTTP"]; assert provider.PROVIDER_VERSION == "2.0.2", provider.PROVIDER_VERSION; print("bgutil HTTP plugin loaded:", provider.PROVIDER_VERSION)'
           docker logs groovezip-test
-          exit 1
