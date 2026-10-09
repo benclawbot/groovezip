@@ -2,6 +2,7 @@ FROM node:26-bookworm-slim AS pot-provider-build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
         git \
         g++ \
         libgif-dev \
