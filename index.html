@@ -44,6 +44,11 @@
   .btn:active{transform:translateY(2px);}
   .btn.ghost{background:var(--panel); color:var(--text); border:1px solid var(--line); font-size:13px; padding:12px 18px;}
   .btn:disabled{opacity:.55; cursor:not-allowed;}
+  #auth{max-width:720px; margin:14px auto 0; text-align:left; border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:12px 14px; font-size:13px; color:var(--mut);}
+  #auth summary{cursor:pointer; color:var(--text); font-weight:700;}
+  #auth p{line-height:1.6; margin:10px 0;}
+  #auth a{color:var(--org);}
+  #cookies{display:block; margin-top:8px; max-width:100%; color:var(--text);}
   /* ---------- info / progress ---------- */
   .card{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:18px;}
   .card.hidden{display:none;}
@@ -101,6 +106,13 @@
       <button class="btn" id="check-btn">Check</button>
       <button class="btn" id="dl-btn">⬇ Download ZIP</button>
     </div>
+    <details id="auth">
+      <summary>YouTube sign-in (if required)</summary>
+      <p><a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Sign in at YouTube</a>, then export cookies for <b>youtube.com only</b> as a Netscape .txt file. <a href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies" target="_blank" rel="noopener noreferrer">Export instructions</a></p>
+      <label for="cookies">Connect your signed-in YouTube session</label>
+      <input id="cookies" type="file" accept=".txt,text/plain">
+      <p>Session cookies grant account access. Your selected file is sent to this server for this request only. Its server copy is deleted when the check or download finishes. YouTube may still block the hosting IP.</p>
+    </details>
     <div id="error"></div>
   </div>
 
@@ -126,7 +138,14 @@ $("check-btn").onclick = check;
 $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
 $("toggle").onclick = () => { $("preview").classList.toggle("hidden"); };
 
-function showError(m){ const el=$("error"); el.textContent=m; el.style.display=m?"block":"none"; }
+function showError(m){ const el=$("error"); el.textContent=m; el.style.display=m?"block":"none"; if(/sign in|not a bot/i.test(m)) $("auth").open=true; }
+
+async function sessionPayload(){
+  const file = $("cookies").files?.[0];
+  if(!file) return {};
+  if(file.size > 1048576) throw new Error("The YouTube cookies file must be smaller than 1 MB.");
+  return {cookies: await file.text()};
+}
 
 async function check(){
   showError("");
@@ -134,7 +153,8 @@ async function check(){
   if(!url) return showError("Please paste a URL first.");
   $("check-btn").disabled=true; $("check-btn").textContent="Checking…";
   try{
-    const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url}) });
+    const session = await sessionPayload();
+    const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url, ...session}) });
     const d = await readJson(res);
     if(!res.ok || d.error) throw new Error(d.error || "HTTP "+res.status);
     currentUrl = url;
@@ -158,15 +178,17 @@ async function startDownload(){
   $("current").textContent = ""; $("bar-fill").style.width = "0%";
   $("download-link").style.display = "none";
   try {
+    const session = await sessionPayload();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
     let res;
     try {
-      res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10) }), signal: controller.signal });
+      res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10), ...session }), signal: controller.signal });
     } finally { clearTimeout(timeout); }
     const d = await readJson(res);
     if(!res.ok || d.error) throw new Error(d.error || "Server returned HTTP " + res.status);
     if(!d.id) throw new Error("Server did not return a download job ID.");
+    $("cookies").value = "";
     $("dl-btn").textContent = "Download ZIP";
     poll(d.id);
   } catch(err) {

@@ -7,10 +7,10 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
 function setup(fetchImpl) {
   const elements = new Map();
-  for (const id of ["check-btn", "url", "toggle", "preview", "error", "pl-title", "pl-count", "pl-prevn", "pl-info", "progress", "stat-text", "stat-extra", "current", "bar-fill", "download-link", "zip-meta", "zip-href", "dl-btn", "quality"]) {
+  for (const id of ["auth", "cookies", "check-btn", "url", "toggle", "preview", "error", "pl-title", "pl-count", "pl-prevn", "pl-info", "progress", "stat-text", "stat-extra", "current", "bar-fill", "download-link", "zip-meta", "zip-href", "dl-btn", "quality"]) {
     elements.set(id, {
       id, value: id === "url" ? "" : id === "quality" ? "192" : "", textContent: "",
-      disabled: false, style: {}, innerHTML: "", classList: {
+      disabled: false, files: [], style: {}, innerHTML: "", classList: {
         values: new Set(id === "pl-info" || id === "progress" || id === "preview" ? ["hidden"] : []),
         add(name) { this.values.add(name); }, remove(name) { this.values.delete(name); },
         toggle(name) { this.values.has(name) ? this.values.delete(name) : this.values.add(name); },
@@ -33,6 +33,21 @@ const response = (data, status = 200, jsonError = false) => ({
 });
 
 (async () => {
+  {
+    let submitted;
+    const { elements, context } = setup(async (_url, options) => {
+      submitted = JSON.parse(options.body);
+      return response({ id: "session-job" });
+    });
+    elements.get("url").value = "https://youtube.com/watch?v=abc";
+    elements.get("cookies").files = [{ size: 10, text: async () => "synthetic-cookie-fixture" }];
+    elements.get("cookies").value = "selected.txt";
+    await context.startDownload();
+    assert.equal(submitted.cookies, "synthetic-cookie-fixture");
+    assert.equal(elements.get("cookies").value, "", "session selection clears after submission");
+    context.showError("Sign in to confirm you're not a bot");
+    assert.equal(elements.get("auth").open, true, "authentication help opens on sign-in failure");
+  }
   {
     let requested;
     const { elements, context } = setup(async (url, options) => {

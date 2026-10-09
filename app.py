@@ -23,6 +23,7 @@ import re
 import shutil
 import signal
 import subprocess
+import tempfile
 import time
 import uuid
 import zipfile
@@ -149,9 +150,50 @@ def is_supported_youtube_url(url):
         return False
 
 
-def flat_info(url):
+def validate_cookie_text(text):
+    if text in (None, ""):
+        return ""
+    if not isinstance(text, str) or len(text.encode("utf-8")) > 1024 * 1024:
+        raise ValueError("YouTube cookies must be a text file smaller than 1 MB")
+    lines = text.splitlines()
+    if not lines or lines[0] not in ("# Netscape HTTP Cookie File", "# HTTP Cookie File"):
+        raise ValueError("Export YouTube cookies in Netscape cookies.txt format")
+    count = 0
+    for line in lines[1:]:
+        if line.startswith("#HttpOnly_"):
+            line = line[len("#HttpOnly_"):]
+        elif not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        domain = fields[0].lower().lstrip(".")
+        if len(fields) != 7 or (domain != "youtube.com" and not domain.endswith(".youtube.com")):
+            raise ValueError("Export cookies for youtube.com only, in Netscape format")
+        if (fields[1] not in ("TRUE", "FALSE") or fields[3] not in ("TRUE", "FALSE")
+                or not fields[4].isdigit() or not fields[5]
+                or ((fields[1] == "TRUE") != fields[0].startswith("."))):
+            raise ValueError("The YouTube cookies file contains an invalid entry")
+        count += 1
+    if not count:
+        raise ValueError("The cookies file contains no YouTube session cookies")
+    return "\n".join(lines) + "\n"
+
+
+def write_cookie_file(directory, text):
+    if not text:
+        return None
+    path = os.path.join(directory, "youtube-session.txt")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as file:
+        file.write(text)
+    return path
+
+
+def flat_info(url, cookiefile=None):
     """Quick metadata pass (no downloads): playlist title + entry list."""
-    with yt_dlp.YoutubeDL(CHECK_OPTS) as ydl:
+    options = dict(CHECK_OPTS)
+    if cookiefile:
+        options["cookiefile"] = cookiefile
+    with yt_dlp.YoutubeDL(options) as ydl:
         return ydl.extract_info(url, download=False)
 
 
@@ -175,7 +217,7 @@ def new_job(job_id):
     return job
 
 
-def download_worker(job, url, quality):
+def download_worker(job, url, quality, cookiefile=None):
     job_dir = job["dir"]
     os.makedirs(job_dir, exist_ok=True)
     job["state"] = "running"
@@ -216,7 +258,7 @@ def download_worker(job, url, quality):
     try:
         # 1) Fast metadata pass -> accurate total + playlist title.
         try:
-            info = flat_info(url)
+            info = flat_info(url, cookiefile=cookiefile)
             if info.get("_type") == "playlist":
                 entries = info.get("entries") or []
                 job["title"] = info.get("title") or "playlist"
@@ -252,6 +294,8 @@ def download_worker(job, url, quality):
             "retries": 3,
             "logger": logger,
         }
+        if cookiefile:
+            opts["cookiefile"] = cookiefile
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
 
@@ -308,9 +352,13 @@ class Handler(BaseHTTPRequestHandler):
     def _read_json(self):
         try:
             length = int(self.headers.get("Content-Length") or 0)
+            if length > 2 * 1024 * 1024:
+                raise ValueError("Request is too large; cookies must be smaller than 1 MB")
             if length <= 0:
                 return {}
             return json.loads(self.rfile.read(length) or b"{}")
+        except ValueError:
+            raise
         except Exception:
             return {}
 
@@ -418,7 +466,13 @@ class Handler(BaseHTTPRequestHandler):
         return params.get("id", "")
 
     def do_POST(self):
-        data = self._read_json()
+        try:
+            data = self._read_json()
+            if not isinstance(data, dict):
+                raise ValueError("Send a JSON object")
+            data["cookies"] = validate_cookie_text(data.get("cookies"))
+        except ValueError as exc:
+            return self._send_json({"error": str(exc)}, 400)
         if self.path == "/api/check":
             self.handle_check(data)
         elif self.path == "/api/download":
@@ -437,7 +491,9 @@ class Handler(BaseHTTPRequestHandler):
                 {"error": "yt-dlp is not installed. Run: pip install yt-dlp"}, 500
             )
         try:
-            info = flat_info(url)
+            with tempfile.TemporaryDirectory(prefix="groovezip-check-") as directory:
+                cookiefile = write_cookie_file(directory, data.get("cookies"))
+                info = flat_info(url, cookiefile=cookiefile)
         except Exception as exc:  # noqa: BLE001
             return self._send_json({"error": str(exc)}, 500)
 
@@ -486,10 +542,14 @@ class Handler(BaseHTTPRequestHandler):
             quality = 192
 
         job = new_job(uuid.uuid4().hex)
+        cookiefile = None
+        if data.get("cookies"):
+            os.makedirs(job["dir"], mode=0o700)
+            cookiefile = write_cookie_file(job["dir"], data["cookies"])
         with JOBS_LOCK:
             JOBS[job["id"]] = job
         thread = threading.Thread(
-            target=download_worker, args=(job, url, quality), daemon=True
+            target=download_worker, args=(job, url, quality, cookiefile), daemon=True
         )
         thread.start()
         self._send_json({"id": job["id"]})

@@ -14,6 +14,9 @@ from urllib.error import HTTPError
 
 import app
 
+# Deliberately synthetic authentication fixture; never a real session.
+COOKIE_FIXTURE = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSID\tsynthetic-session-not-real\n"
+
 
 class AppTests(unittest.TestCase):
     @classmethod
@@ -80,6 +83,81 @@ class AppTests(unittest.TestCase):
 
     def test_health_endpoint(self):
         self.assertEqual(self.request("/health"), (200, {"status": "ok"}))
+
+    def test_cookie_upload_rejects_other_sites_without_disclosing_values(self):
+        with patch.object(app, "flat_info") as info:
+            status, body = self.request("/api/check", {
+                "url": "https://youtube.com/watch?v=abc",
+                "cookies": COOKIE_FIXTURE.replace(".youtube.com", ".google.com"),
+            })
+        self.assertEqual(status, 400)
+        self.assertNotIn("synthetic-session-not-real", json.dumps(body))
+        info.assert_not_called()
+
+    def test_check_cookie_copy_is_private_and_deleted_after_request(self):
+        paths = []
+        def inspect(_url, cookiefile=None):
+            paths.append(cookiefile)
+            self.assertEqual(os.stat(cookiefile).st_mode & 0o777, 0o600)
+            with open(cookiefile) as file:
+                self.assertEqual(file.read(), COOKIE_FIXTURE)
+            return {"title": "Private session fixture"}
+        with patch.object(app, "flat_info", side_effect=inspect):
+            status, _ = self.request("/api/check", {
+                "url": "https://youtube.com/watch?v=abc", "cookies": COOKIE_FIXTURE,
+            })
+        self.assertEqual(status, 200)
+        self.assertFalse(os.path.exists(paths[0]))
+
+    def test_download_sessions_are_isolated_deleted_and_excluded_from_zip(self):
+        seen = []
+        class FakeDownloader:
+            def __init__(self, options):
+                self.options = options
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                pass
+            def download(self, _urls):
+                cookiefile = self.options.get("cookiefile")
+                seen.append(cookiefile)
+                if cookiefile:
+                    assert os.stat(cookiefile).st_mode & 0o777 == 0o600
+                    with open(cookiefile) as file:
+                        assert file.read() == COOKIE_FIXTURE
+                directory = os.path.dirname(self.options["outtmpl"])
+                with open(os.path.join(directory, "track.mp3"), "wb") as file:
+                    file.write(b"synthetic-audio")
+        with tempfile.TemporaryDirectory() as downloads, patch.object(
+            app, "DOWNLOADS_DIR", downloads
+        ), patch.object(app, "flat_info", return_value={"title": "Fixture"}), patch.object(
+            app.yt_dlp, "YoutubeDL", FakeDownloader
+        ):
+            jobs = []
+            try:
+                for cookies in (COOKIE_FIXTURE, ""):
+                    status, response = self.request("/api/download", {
+                        "url": "https://youtube.com/watch?v=abc", "cookies": cookies,
+                    })
+                    self.assertEqual(status, 200)
+                    job = app.JOBS[response["id"]]
+                    jobs.append(job)
+                    deadline = time.monotonic() + 2
+                    while job["state"] not in ("done", "error") and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertEqual(job["state"], "done", job.get("error"))
+                    self.assertFalse(os.path.exists(job["dir"]))
+                    with zipfile.ZipFile(job["zipfile"]) as archive:
+                        self.assertEqual(archive.namelist(), ["track.mp3"])
+                    _, public_status = self.request("/api/status?id=" + job["id"])
+                    self.assertNotIn("synthetic-session-not-real", json.dumps(public_status))
+                self.assertIsNotNone(seen[0])
+                self.assertIsNone(seen[1])
+                self.assertFalse(os.path.exists(seen[0]))
+            finally:
+                with app.JOBS_LOCK:
+                    for job in jobs:
+                        app.JOBS.pop(job["id"], None)
 
     def test_ytdlp_uses_bgutil_and_bounded_youtube_clients(self):
         args = app.CHECK_OPTS["extractor_args"]

@@ -75,6 +75,24 @@ Local runs use `downloads/` next to the app; Docker runs use `/app/downloads`.
 
 ## API (in case you want to script it)
 
+### Connect YouTube when sign-in is required
+
+Open **YouTube sign-in (if required)** below the URL input. Sign in on YouTube,
+then follow the linked [YouTube cookie export instructions](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)
+to export only `youtube.com` cookies in Netscape `.txt` format. Select that file
+in GrooveZip and click Check or Download ZIP. Do not put session cookies in Git,
+chat messages, or hosting environment variables.
+
+Cookies grant account access. The file is transmitted to this server for the
+selected request, stored with owner-only permissions, and deleted after the
+check or download finishes. Each download has its own cookie copy; it is never
+included in the ZIP or reused by another user's job. YouTube may still refuse
+the cloud host's IP. Authenticated media access requires a real user session to
+verify; the anonymous test on this Render host still returned a sign-in error.
+
+API requests may include an optional `cookies` string containing a Netscape
+cookie file (maximum 1 MB, YouTube domains only).
+
 | Endpoint | Method | Body / Query | Returns |
 |---|---|---|---|
 | `/api/check` | POST | `{"url": "…"}` | playlist title, track count, first tracks |
