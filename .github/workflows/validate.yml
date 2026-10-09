@@ -1,0 +1,29 @@
+name: Validate app and Docker image
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - run: docker build -t groovezip:test .
+      - name: Verify container startup and dependencies
+        run: |
+          docker run --rm groovezip:test node --version
+          docker run --rm groovezip:test ffmpeg -version
+          docker run -d --name groovezip-test -p 8787:8787 groovezip:test
+          for attempt in $(seq 1 30); do
+            if curl --fail http://127.0.0.1:8787/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs groovezip-test
+          exit 1

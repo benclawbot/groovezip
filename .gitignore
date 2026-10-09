@@ -1,0 +1,14 @@
+# Generated static site bundle
+/dist/
+
+# Local downloader output and runtime state
+/downloads/
+__pycache__/
+*.py[cod]
+
+# yt-dlp browser cookies and local environment secrets
+cookies*.txt
+*.cookies
+.env
+.env.*
+!.env.example
