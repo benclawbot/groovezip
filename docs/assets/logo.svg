@@ -1,0 +1,10 @@
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" width="160" height="160" role="img" aria-labelledby="title"><title id="title">GrooveZip vinyl logo</title>
+      <circle cx="80" cy="80" r="78" fill="#1c1530"/>
+      <circle cx="80" cy="80" r="76" fill="none" stroke="#ff891f" stroke-width="4"/>
+      <g fill="none" stroke="#2f2550" stroke-width="1.6">
+<circle cx="80" cy="80" r="62"/>
+<circle cx="80" cy="80" r="52"/>
+<circle cx="80" cy="80" r="42"/>
+<circle cx="80" cy="80" r="26"/></g>
+      <circle cx="80" cy="80" r="14" fill="#ff891f"/>
+<circle cx="80" cy="80" r="7" fill="#1c1530"/><path d="M74 76v16l14-8z" fill="#1c1530"/></svg>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GrooveZip — Playlist → MP3 ZIP</title>
+<title>GrooveZip — Music downloads</title>
 <style>
   :root{
     --bg:#141019; --panel:#1b1723; --panel-2:#211c2c; --line:#2e2740;
@@ -11,6 +11,7 @@
     font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:var(--text);
   }
   *{box-sizing:border-box}
+  .hidden{display:none!important}
   body{margin:0; background:var(--bg) url('/designs/backgrounds/music-waves.png') top center/cover no-repeat fixed; min-height:100vh; overflow-x:hidden; color:var(--text);}
   .vinyl{display:block; width:150px; height:150px; margin:8px auto 22px; animation:spin 6s linear infinite;}
   /* */
@@ -44,11 +45,6 @@
   .btn:active{transform:translateY(2px);}
   .btn.ghost{background:var(--panel); color:var(--text); border:1px solid var(--line); font-size:13px; padding:12px 18px;}
   .btn:disabled{opacity:.55; cursor:not-allowed;}
-  #auth{max-width:720px; margin:14px auto 0; text-align:left; border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:12px 14px; font-size:13px; color:var(--mut);}
-  #auth summary{cursor:pointer; color:var(--text); font-weight:700;}
-  #auth p{line-height:1.6; margin:10px 0;}
-  #auth a{color:var(--org);}
-  #cookies{display:block; margin-top:8px; max-width:100%; color:var(--text);}
   /* ---------- info / progress ---------- */
   .card{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:18px;}
   .card.hidden{display:none;}
@@ -94,58 +90,52 @@
       <circle cx="80" cy="80" r="76" fill="none" stroke="var(--org)" stroke-width="4"/>
       <g fill="none" stroke="#2f2550" stroke-width="1.6"><circle cx="80" cy="80" r="62"/><circle cx="80" cy="80" r="52"/><circle cx="80" cy="80" r="42"/><circle cx="80" cy="80" r="26"/></g>
       <circle cx="80" cy="80" r="14" fill="var(--org)"/><circle cx="80" cy="80" r="7" fill="#1c1530"/><path d="M74 76v16l14-8z" fill="#1c1530"/></svg></div>
-    <div class="tag">Pick a playlist · get one sweet ZIP 🎧</div>
-    <h1>Rip the <b>whole playlist</b></h1>
-    <p class="sub">Paste a YouTube playlist → every track saved as MP3, zipped, yours.</p>
+    <div class="tag">Your music, ready to go 🎧</div>
+    <h1>Make it a <b>GrooveZip</b></h1>
+    <p class="sub">Download a song or collect a playlist. Choose audio or video.</p>
     <div class="form">
       <input type="url" id="url" placeholder="Paste a YouTube playlist or video URL" aria-label="YouTube playlist or video URL" autocomplete="off">
-      <select id="quality" title="MP3 bitrate">
+      <select id="quality" aria-label="MP3 bitrate">
         <option value="128">128 kbps</option><option value="192" selected>192 kbps</option>
         <option value="256">256 kbps</option><option value="320">320 kbps</option>
       </select>
+      <select id="format" aria-label="Download format"><option value="mp3">MP3 audio</option><option value="mp4">MP4 video</option></select>
+      <select id="resolution" aria-label="Maximum video resolution" class="hidden"><option value="480">Up to 480p</option><option value="720" selected>Up to 720p</option><option value="1080">Up to 1080p</option></select>
       <button class="btn" id="check-btn">Check</button>
-      <button class="btn" id="dl-btn">⬇ Download ZIP</button>
+      <button class="btn" id="dl-btn">⬇ Download</button>
     </div>
-    <details id="auth">
-      <summary>YouTube sign-in (if required)</summary>
-      <p><a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Sign in at YouTube</a>, then export cookies for <b>youtube.com only</b> as a Netscape .txt file. <a href="https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies" target="_blank" rel="noopener noreferrer">Export instructions</a></p>
-      <label for="cookies">Connect your signed-in YouTube session</label>
-      <input id="cookies" type="file" accept=".txt,text/plain">
-      <p>Session cookies grant account access. Your selected file is sent to this server for this request only. Its server copy is deleted when the check or download finishes. YouTube may still block the hosting IP.</p>
-    </details>
+    <p class="muted" style="font-size:12px">If YouTube blocks a track, its URL is sent to the free fallback service. Fallback files use service-selected quality.</p>
     <div id="error"></div>
   </div>
 
   <div class="card hidden" id="pl-info">
-    <div class="meta"><span><span class="k">Playlist</span> <b id="pl-title">—</b></span><span><span class="k">Tracks</span> <b id="pl-count">—</b></span><span class="dot">🎵 <b id="pl-prevn">0</b></span></div>
+    <div class="meta"><span><span class="k">Collection</span> <b id="pl-title">—</b></span><span><span class="k">Tracks</span> <b id="pl-count">—</b></span><span><span class="k">Total duration</span> <b id="pl-duration">—</b></span><span class="dot">🎵 <b id="pl-prevn">0</b></span></div>
     <button class="btn ghost" id="toggle">Show track list</button>
     <div id="preview" class="hidden"></div>
   </div>
 
   <div class="card hidden" id="progress">
+    <p class="muted" id="job-title"></p>
     <div class="bar-box"><div id="bar-fill"></div></div>
     <div class="stat"><span id="stat-text">Starting…</span> <span id="stat-extra"></span></div>
     <div id="current"></div>
-    <div id="download-link"><a id="zip-href" href="#">⬇ Save the ZIP</a><span id="zip-meta"></span></div>
+    <div id="download-link"><a id="zip-href" href="#">⬇ Save download</a><span id="zip-meta"></span></div>
   </div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 let currentUrl = "";
+function isPlaylistUrl(value){ try{return new URL(value).pathname==='/playlist';}catch(_){return false;} }
+function updateDownloadLabel(){ const format=$('format').value.toUpperCase(); $('dl-btn').textContent='⬇ '+(isPlaylistUrl($('url').value.trim())?'Download ZIP':'Download '+format); }
+$('format').addEventListener('change',()=>{ $('quality').classList.toggle('hidden',$('format').value!=='mp3'); $('resolution').classList.toggle('hidden',$('format').value!=='mp4'); updateDownloadLabel(); });
+$('url').addEventListener('input',updateDownloadLabel);
 
 $("check-btn").onclick = check;
 $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
 $("toggle").onclick = () => { $("preview").classList.toggle("hidden"); };
 
-function showError(m){ const el=$("error"); el.textContent=m; el.style.display=m?"block":"none"; if(/sign in|not a bot/i.test(m)) $("auth").open=true; }
-
-async function sessionPayload(){
-  const file = $("cookies").files?.[0];
-  if(!file) return {};
-  if(file.size > 1048576) throw new Error("The YouTube cookies file must be smaller than 1 MB.");
-  return {cookies: await file.text()};
-}
+function showError(m){ const el=$("error"); el.textContent=m; el.style.display=m?"block":"none"; }
 
 async function check(){
   showError("");
@@ -153,13 +143,13 @@ async function check(){
   if(!url) return showError("Please paste a URL first.");
   $("check-btn").disabled=true; $("check-btn").textContent="Checking…";
   try{
-    const session = await sessionPayload();
-    const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url, ...session}) });
+    const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url}) });
     const d = await readJson(res);
     if(!res.ok || d.error) throw new Error(d.error || "HTTP "+res.status);
     currentUrl = url;
     $("pl-title").textContent = d.title || "(unknown)";
     $("pl-count").textContent = d.is_playlist ? (d.count ?? "?") + " tracks" : "1 (single video)";
+    $("pl-duration").textContent = d.duration ? formatTime(d.duration) : "Unknown";
     const en = d.entries || [];
     $("pl-prevn").textContent = d.count ?? en.length;
     $("preview").innerHTML = en.length ? "<ul>"+en.map(e=>"<li>"+esc(e.title||"")+"</li>").join("")+"</ul>" : "";
@@ -178,23 +168,21 @@ async function startDownload(){
   $("current").textContent = ""; $("bar-fill").style.width = "0%";
   $("download-link").style.display = "none";
   try {
-    const session = await sessionPayload();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120000);
     let res;
     try {
-      res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10), ...session }), signal: controller.signal });
+      res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10), format:$('format').value, resolution:parseInt($('resolution').value,10) }), signal: controller.signal });
     } finally { clearTimeout(timeout); }
     const d = await readJson(res);
     if(!res.ok || d.error) throw new Error(d.error || "Server returned HTTP " + res.status);
     if(!d.id) throw new Error("Server did not return a download job ID.");
-    $("cookies").value = "";
-    $("dl-btn").textContent = "Download ZIP";
+    updateDownloadLabel();
     poll(d.id);
   } catch(err) {
     $("stat-text").textContent = "Could not start download";
     showError("Failed to start download: " + (err.name === "AbortError" ? "The server took too long to respond. Please try again." : err.message));
-    $("dl-btn").disabled = false; $("dl-btn").textContent = "⬇ Download ZIP";
+    $("dl-btn").disabled = false; updateDownloadLabel();
   }
 }
 $("dl-btn").onclick = startDownload;
@@ -213,19 +201,49 @@ function poll(jobId){
       const j = await readJson(res);
       if (!res.ok) throw new Error(j.error || "Server returned HTTP " + res.status);
       if(j.error) throw new Error(j.error);
+      $("job-title").textContent = (j.title || "") + (j.playlist_duration ? " · Total duration about " + formatTime(j.playlist_duration) : " · Total duration unknown");
       const tot = j.total || 0, done = j.completed;
-      $("bar-fill").style.width = Math.min(100, tot ? Math.round(done/tot*100) : 0) + "%";
-      $("stat-text").textContent = j.total==null ? (j.state) : done+" / "+tot+" MP3"+(done>1?"s":"")+" ready";
-      $("stat-extra").textContent = j.failed ? "("+j.failed+" failed)" : "";
-      $("current").textContent = j.current ? "♪ "+j.current : "";
+      let percent = tot ? done/tot*100 : 0;
+      if (tot > 0 && j.phase === "downloading" && j.total_bytes > 0) {
+        percent = Math.max(percent, (done + Math.min(0.99, j.downloaded_bytes / j.total_bytes)) / tot * 100);
+      }
+      $("bar-fill").style.width = Math.min(99, Math.round(percent)) + "%";
+      const label = j.format === 'mp4' ? 'MP4' : 'MP3';
+      const phase = j.phase === "preparing" ? "Preparing next track" :
+                    j.phase === "converting" ? "Converting to "+(j.format||"mp3").toUpperCase() :
+                    j.phase === "downloading" ? "Downloading" :
+                    j.phase === "fallback" ? "Waiting for fallback "+label :
+                    j.phase === "cooldown" ? "Service cooldown" :
+                    j.phase === "archiving" ? "Building ZIP" : j.state;
+      const waitSeconds = j.retry_at ? Math.max(0, Math.ceil(j.retry_at - Date.now()/1000)) : 0;
+      $("stat-text").textContent = j.total==null ? phase : done+" / "+tot+" "+label+(done!==1?"s":"")+" ready · "+phase;
+      $("stat-extra").textContent = [j.failed ? j.failed+" failed" : "", j.remaining ? j.remaining+" not attempted" : ""].filter(Boolean).join(" · ");
+      let detail = j.current ? "♪ "+j.current : "";
+      if(j.elapsed!=null) detail += (detail?' · ':'')+'Elapsed '+formatTime(j.elapsed);
+      if(j.estimated_remaining!=null && j.state!=='done' && j.state!=='error') detail += (detail?' · ':'')+(j.estimate_scope==='queue'?'About '+formatTime(j.estimated_remaining)+' until this job starts':'About '+formatTime(j.estimated_remaining)+' remaining (approx.)');
+      if(j.estimated_finish!=null && j.state!=='done' && j.state!=='error') detail += (detail?' · ':'')+(j.estimate_scope==='queue'?'Start around ':'Finish around ')+new Date(j.estimated_finish*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+      if (j.phase === "cooldown" && waitSeconds) detail += (detail?' · ':'')+"Service retry in "+formatTime(waitSeconds);
+      if (j.state === "queued" && j.queue_position) detail += (detail?' · ':'')+"Queue position "+j.queue_position;
+      if (j.phase === "downloading") {
+        const bytes = j.total_bytes ? (j.downloaded_bytes/1048576).toFixed(1)+" / "+(j.total_bytes/1048576).toFixed(1)+" MB" : (j.downloaded_bytes/1048576).toFixed(1)+" MB";
+        const rate = j.speed ? " · "+(j.speed/1048576).toFixed(1)+" MB/s" : "";
+        detail += (detail ? " · " : "")+bytes+rate;
+      }
+      $("current").textContent = detail;
       if(j.state==="done"){ clearInterval(t);
-        $("bar-fill").style.width="100%";
-        $("stat-text").textContent = "Done — "+done+" MP3"+(done>1?"s":"");
-        $("zip-meta").textContent = j.zip_size ? " · "+(j.zip_size/1048576).toFixed(1)+" MB" : "";
-        $("zip-href").href = "/api/zip?id="+encodeURIComponent(jobId);
-        $("download-link").style.display = "flex"; $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP";
-      } else if(j.state==="error"){ clearInterval(t); $("stat-text").textContent="Error"; showError("Download failed: "+(j.error||"unknown")); $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP"; }
-    }catch(err){ clearInterval(t); showError("Could not check download status: "+err.message); $("dl-btn").disabled=false; $("dl-btn").textContent="⬇ Download ZIP"; }
+        $("bar-fill").style.width = j.result === "partial" && tot
+          ? Math.min(99, Math.round(done/tot*100))+"%" : "100%";
+        $("stat-text").textContent = j.mode==='single' ? "Ready — "+label : j.result === "partial"
+          ? "Partial ZIP — "+done+" "+label+(done!==1?"s":"")+" ready"
+          : "Done — "+done+" "+label+(done!==1?"s":"");
+        if (j.result === "partial") showError(j.result_reason || "Some tracks could not be downloaded. The ZIP contains the "+label+" files that succeeded.");
+        const outputSize=j.mode==='single'?j.file_size:j.zip_size;
+        $("zip-meta").textContent = outputSize ? " · "+(outputSize/1048576).toFixed(1)+" MB" : "";
+        $("zip-href").href = (j.mode==='single'?"/api/file?id=":"/api/zip?id=")+encodeURIComponent(jobId);
+        $("zip-href").textContent = j.mode==='single' ? '⬇ Save '+label : '⬇ Save the ZIP';
+        $("download-link").style.display = "flex"; $("dl-btn").disabled=false; updateDownloadLabel();
+      } else if(j.state==="error"){ clearInterval(t); $("stat-text").textContent="Error"; showError("Download failed: "+(j.error||"unknown")); $("dl-btn").disabled=false; updateDownloadLabel(); }
+    }catch(err){ clearInterval(t); showError("Could not check download status: "+err.message); $("dl-btn").disabled=false; updateDownloadLabel(); }
     finally { polling = false; }
   }, 1000);
 }
@@ -234,6 +252,15 @@ async function readJson(res){
   catch (_) { throw new Error("Server returned an unreadable response. Please try again."); }
 }
 function esc(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function formatTime(seconds){ seconds=Math.max(0,Math.round(Number(seconds)||0)); if(seconds<60)return seconds+'s'; const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60); return h?h+'h '+m+'m':m+'m'; }
+// Reattach to a running local job after an intentional page refresh.
+if (typeof location !== "undefined") {
+  const resumeJob = new URLSearchParams(location.hash.slice(1)).get("job");
+  if (/^[a-f0-9]{32}$/.test(resumeJob || "")) {
+    $("dl-btn").disabled = true;
+    poll(resumeJob);
+  }
+}
 </script>
 </body>
 </html>

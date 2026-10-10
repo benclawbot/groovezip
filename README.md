@@ -1,117 +1,146 @@
-# YouTube Playlist → MP3 ZIP
+<p align="center">
+  <img src="docs/assets/logo.svg" width="100" height="100" alt="GrooveZip vinyl logo">
+</p>
 
-A tiny web app: paste a supported YouTube playlist URL, click a button, and you
-get a **ZIP file with every track as an MP3** (numbered, with ID3 tags). Single
-video URLs work too. The app can run locally or in a Docker host.
+# GrooveZip
+
+A local web app for downloading a public YouTube video as **MP3 audio** or **MP4 video**, or collecting a playlist into one **ZIP**. Paste a link, choose a format, and follow the progress in your browser.
+
+![GrooveZip running locally with MP3 and MP4 download controls](docs/assets/screenshot.jpg)
+
+## What it does
+
+- Individual videos: download an MP3 or MP4 directly.
+- Playlists: download the available tracks in order and save them together as a ZIP.
+- MP3: choose 128, 192, 256, or 320 kbps for local conversions.
+- MP4: choose a maximum resolution of 480p, 720p, or 1080p.
+- Download jobs run serially, with shared cooldowns and automatic retries when the service rate-limits requests.
+- Progress includes playlist duration, elapsed time, and an approximate time remaining that adapts as tracks finish.
+- Partial playlists include a `missing-tracks.csv` report with unavailable or unattempted entries.
+- Temporary media and fragments are cleaned up after packaging. Finished files and job records are removed after a successful browser transfer; interrupted transfers remain available for retry.
 
 ## Run locally
 
-- Python 3.8+
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) (`pip install yt-dlp` or your package manager)
-- [ffmpeg](https://ffmpeg.org/) (used to convert to MP3)
+### Requirements
 
-Install the Python dependency and ffmpeg, then start the app:
+- Python **3.10+**
+- Node.js **22+**, available on `PATH` ([yt-dlp runtime requirements](https://github.com/yt-dlp/yt-dlp/wiki/EJS))
+- `ffmpeg` and `ffprobe`
+- `curl`
+- Python dependencies in [`requirements.txt`](requirements.txt)
 
-```bash
-cd youtube-playlist-downloader
-python3 app.py
-# Open http://127.0.0.1:8787
-```
-
-Or directly:
+On Debian or Ubuntu, install the media tools with:
 
 ```bash
-./run.sh            # convenience wrapper around the same command
+sudo apt-get update
+sudo apt-get install ffmpeg curl python3-venv
 ```
 
-The server binds to `127.0.0.1:8787` by default. Set `HOST` to change the bind
-address and `PORT` to use a hosting platform's assigned port. `YTD_PORT` remains
-supported as a legacy port setting.
+Install Node.js from [the official download page](https://nodejs.org/en/download) or your package manager, then:
 
-## Host with Docker
+```bash
+git clone https://github.com/benclawbot/groovezip.git
+cd groovezip
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+./run.sh
+```
 
-The image includes Python, ffmpeg, yt-dlp with its challenge-solver dependencies,
-Node.js 26 for YouTube's JavaScript challenges, and the pinned bgutil proof-of-
-origin token provider. The provider listens only on container loopback and starts
-with the app. It generates anonymous tokens; it does not use account cookies or
-OAuth. YouTube can still block requests based on the host's IP or change its
-checks, so this cannot guarantee that every playlist downloads. Build and run it
-with:
+Open **[http://127.0.0.1:8787](http://127.0.0.1:8787)**. The server runs until you stop it with `Ctrl+C`; no startup service is installed.
+
+`run.sh` uses `.venv/bin/python` when present and falls back to `python3`. To choose a different port:
+
+```bash
+PORT=9000 ./run.sh
+```
+
+The default bind address is `127.0.0.1`. `HOST`, `PORT`, and the legacy `YTD_PORT` setting are supported.
+
+## Use it
+
+1. Paste a YouTube video or playlist link.
+2. Choose **MP3 audio** or **MP4 video**, then bitrate or resolution.
+3. Click **Download**. **Check** is optional and previews the title, duration, and playlist entries.
+4. Follow progress and any cooldown countdown.
+5. When ready, click **Save MP3**, **Save MP4**, or **Save the ZIP**.
+
+A `/playlist?list=…` link downloads the playlist. A video link downloads only that video, even when its URL also contains a playlist parameter. `youtu.be` and `/shorts/…` links are supported.
+
+### Rate limits and time estimates
+
+GrooveZip honors `Retry-After` delays, including HTTP dates and long cooldowns. A rate limit pauses and retries the current request instead of marking the rest of the playlist as failed. Shared cooldowns keep queued jobs from immediately repeating blocked requests. Temporary network and server failures use bounded retries and backoff; unavailable videos are reported separately.
+
+The time estimate starts from track count and total media duration, then adjusts using observed progress. Queue waits and current cooldowns are included. It is approximate: file size, conversion speed, network conditions, and later rate limits can change the completion time.
+
+### Public downloads and the free fallback
+
+The app uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) and ffmpeg locally. It does not ask for YouTube sign-in, browser cookies, or session files. If YouTube blocks local downloads, eligible public video URLs are sent to the existing free [WebDownloader API](https://save.brianrianrehan.com/docs).
+
+The fallback service has its own rate limits and a roughly 2 GB file limit. Fallback MP3s retain the service's audio quality. Private, removed, age-restricted, or otherwise unavailable videos may not download; neither yt-dlp nor the fallback guarantees access to every entry.
+
+## File lifecycle
+
+Local job files live in `downloads/`, which is excluded from Git.
+
+| Stage | Files retained |
+| --- | --- |
+| Downloading or converting | Current job's media and temporary fragments |
+| Playlist ZIP ready | ZIP only; raw media and fragments removed |
+| Individual file ready | Final MP3 or MP4 only |
+| Transfer interrupted | Finished file retained so the save link can be retried |
+| Transfer completed | Finished file, temporary job directory, and job record removed |
+
+Jobs and queues are held in memory and do not resume after a server restart. The app is intended for one local process, not multiple load-balanced instances.
+
+## HTTP API
+
+Requests and status responses use JSON. Download URLs require an HTTPS YouTube URL on an allowed YouTube host.
+
+| Method | Endpoint | Request | Result |
+| --- | --- | --- | --- |
+| `POST` | `/api/check` | `{"url":"…"}` | Title, count, duration, and preview entries |
+| `POST` | `/api/download` | `{"url":"…","format":"mp3","quality":192}` | `{"id":"…"}` |
+| `POST` | `/api/download` | `{"url":"…","format":"mp4","resolution":720}` | `{"id":"…"}` |
+| `GET` | `/api/status?id=…` | — | State, progress, cooldown, elapsed time, and estimate |
+| `GET` | `/api/file?id=…` | — | Finished individual MP3 or MP4 |
+| `GET` | `/api/zip?id=…` | — | Finished playlist ZIP |
+| `GET` | `/health` or `/healthz` | — | `{"status":"ok"}` |
+
+```bash
+curl -X POST http://127.0.0.1:8787/api/download \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.youtube.com/watch?v=VIDEO_ID","format":"mp4","resolution":720}'
+```
+
+Poll the returned job ID until `state` is `done`, then use the appropriate file or ZIP endpoint. A successful transfer consumes the result; request a new job to download it again.
+
+## Docker
+
+The image includes Python, ffmpeg, curl, Node.js, yt-dlp, and the pinned anonymous bgutil token provider. The provider listens inside the container and starts with the app.
 
 ```bash
 docker build -t groovezip .
-docker run --rm -p 8787:8787 -e HOST=0.0.0.0 -e PORT=8787 groovezip
+docker run --rm -p 127.0.0.1:8787:8787 \
+  -e HOST=0.0.0.0 -e PORT=8787 groovezip
 ```
 
-For a hosting platform, configure its assigned port as `PORT` and publish that
-container port. The app provides `/health` and `/healthz` for health checks. The
-POT provider's `/ping` endpoint is available only inside the container at
-`127.0.0.1:4416`.
-Downloaded files are stored in `/app/downloads` inside the container; mount a
-volume there if jobs must survive container replacement. Supply a persistent
-volume with enough free space for downloads and ZIP output.
+Open `http://127.0.0.1:8787`. Container downloads use `/app/downloads`. Container replacement loses in-memory jobs, and cloud IP addresses may encounter additional YouTube blocks.
 
-The app is deployed at https://groovezip.onrender.com/ on Render's Free plan.
-To deploy another instance, create a Docker Web Service from this repository,
-choose the Free plan and set the health check to `/health`.
-Free instances sleep after inactivity and lose temporary downloads on restart.
-Jobs are kept in memory, so use a single instance; a persistent file volume
-does not preserve the job registry across restarts.
+## Development and checks
 
-## How to use
+```bash
+python3 -m unittest discover -s tests -v
+node tests/test_frontend.js
+python3 -m py_compile app.py
+git diff --check
+```
 
-1. Paste a playlist URL, e.g.
-   `https://youtube.com/playlist?list=PLOBEuByax3HQZXEdaXUhB6jjviWXxvgRk`
-2. Click **Check** to preview the track list (optional).
-3. Pick an MP3 quality (128–320 kbps).
-4. Click **Download ZIP** — watch progress live.
-5. When finished, click **Save the ZIP**.
+The GitHub validation workflow also builds the Docker image and checks container startup, health, and bundled dependencies. Live media availability depends on external services, so deterministic tests use controlled responses and local media fixtures.
 
-The ZIP is downloaded through the browser button. Temporary audio and fragment
-files are deleted when archiving finishes. The ZIP and job record are deleted
-after a completed download transfer; interrupted transfers retain the ZIP so
-you can retry. To download a completed archive again, create a new job.
-Local runs use `downloads/` next to the app; Docker runs use `/app/downloads`.
+## Troubleshooting
 
-## API (in case you want to script it)
-
-### Connect YouTube when sign-in is required
-
-Open **YouTube sign-in (if required)** below the URL input. Sign in on YouTube,
-then follow the linked [YouTube cookie export instructions](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies)
-to export only `youtube.com` cookies in Netscape `.txt` format. Select that file
-in GrooveZip and click Check or Download ZIP. Do not put session cookies in Git,
-chat messages, or hosting environment variables.
-
-Cookies grant account access. The file is transmitted to this server for the
-selected request, stored with owner-only permissions, and deleted after the
-check or download finishes. Each download has its own cookie copy; it is never
-included in the ZIP or reused by another user's job. YouTube may still refuse
-the cloud host's IP. Authenticated media access requires a real user session to
-verify; the anonymous test on this Render host still returned a sign-in error.
-
-API requests may include an optional `cookies` string containing a Netscape
-cookie file (maximum 1 MB, YouTube domains only).
-
-| Endpoint | Method | Body / Query | Returns |
-|---|---|---|---|
-| `/api/check` | POST | `{"url": "…"}` | playlist title, track count, first tracks |
-| `/api/download` | POST | `{"url": "…", "quality": 192}` | `{"id": jobId}` |
-| `/api/status` | GET | `?id=jobId` | live progress (completed/total, current track) |
-| `/api/zip` | GET | `?id=jobId` | downloads the finished ZIP |
-| `/health` | GET | — | `{"status":"ok"}` |
-
-The API accepts HTTPS video or playlist URLs on YouTube's `youtube.com`,
-`www.youtube.com`, `m.youtube.com`, `music.youtube.com`, or `youtu.be` hosts.
-
-## Notes & troubleshooting
-
-- **`pip install yt-dlp` missing** → run it first.
-- **"No MP3 files were produced"** → the playlist may be private,
-  age-restricted, or blocked by YouTube. The hosted Docker image starts the free
-  anonymous POT provider automatically, but YouTube may still require sign-in or
-  block the hosting IP. A local source checkout without the bundled provider
-  remains usable and reports that token support is unavailable.
-- ZIPs that have not yet been downloaded remain in `downloads/` until transfer
-  completion or the host restarts.
-- Change the port: `PORT=9000 python3 app.py` (or legacy `YTD_PORT=9000`).
+- **The job is waiting:** read the queue or cooldown status; it will retry automatically when the wait ends.
+- **Some tracks are missing:** inspect `missing-tracks.csv` in the partial ZIP for the affected entries.
+- **A long video exceeds the fallback limit:** the service may reject it even when shorter videos work.
+- **yt-dlp cannot find its runtime or media tools:** check `node --version`, `ffmpeg -version`, and `ffprobe -version`, and update Python dependencies with `.venv/bin/python -m pip install -U -r requirements.txt`.
+- **A saved result returns 404:** completed transfers are deleted automatically. Start a new job if you need another copy.

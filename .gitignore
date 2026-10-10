@@ -12,3 +12,6 @@ cookies*.txt
 .env
 .env.*
 !.env.example
+
+# Local Python virtual environment
+.venv/
