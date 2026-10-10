@@ -1353,7 +1353,7 @@ class Handler(BaseHTTPRequestHandler):
         if media_format not in ("mp3", "mp4"): media_format = "mp3"
         try: resolution=int(data.get("resolution",720))
         except (TypeError,ValueError): resolution=720
-        if resolution not in (480,720,1080): resolution=720
+        if resolution not in (480,720): resolution=720
 
         job = new_job(uuid.uuid4().hex)
         job["format"] = media_format

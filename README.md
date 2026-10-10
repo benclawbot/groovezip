@@ -13,7 +13,7 @@ A local web app for downloading a public YouTube video as **MP3 audio** or **MP4
 - Individual videos: download an MP3 or MP4 directly.
 - Playlists: download the available tracks in order and save them together as a ZIP.
 - MP3: choose 128, 192, 256, or 320 kbps for local conversions.
-- MP4: choose a maximum resolution of 480p, 720p, or 1080p.
+- MP4: choose a maximum resolution of 480p or 720p.
 - Download jobs run serially, with shared cooldowns and automatic retries when the service rate-limits requests.
 - Progress includes playlist duration, elapsed time, and an approximate time remaining that adapts as tracks finish.
 - Partial playlists include a `missing-tracks.csv` report with unavailable or unattempted entries.
