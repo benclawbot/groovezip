@@ -581,6 +581,7 @@ def download_worker(job, url, quality, media_format="mp3", resolution=720):
     failed_items = set()
     current_item = None
     gate_error = None
+    media_403_fallback = False
     gate_index = None
     fallback_failures = {}
     outcomes = {}
@@ -637,16 +638,24 @@ def download_worker(job, url, quality, media_format="mp3", resolution=720):
                     self.last_error = message[-500:]
 
         def error(self, message):
-            nonlocal gate_error
+            nonlocal gate_error, media_403_fallback
             # yt-dlp messages can contain full URLs; keep only a safe, useful reason.
             message = safe_public_error(message).strip()
             if message:
                 self.last_error = message[-500:]
                 if re.search(r"not a bot|bot check|too many requests|http error 429|http error 402", message, re.I):
                     gate_error = message[-500:]
-                elif media_format == "mp3" and re.search(r"http error 403", message, re.I) and (current_item or job.get("total") == 1):
-                    # Try ordinary advertised audio formats once for a per-asset CDN denial.
-                    format_retry_indices.add(str(current_item or "1"))
+                elif (current_item or job.get("total") == 1):
+                    if media_format == "mp3" and re.search(r"http error 403", message, re.I):
+                        # Try ordinary advertised audio formats once for a per-asset CDN denial.
+                        format_retry_indices.add(str(current_item or "1"))
+                    elif media_format == "mp4" and re.search(
+                        r"unable to download video data.*http error 403", message, re.I
+                    ):
+                        # A media CDN denial is per-track; retry this and later
+                        # eligible entries through the existing anonymous API.
+                        gate_error = "YouTube denied media download with HTTP 403"
+                        media_403_fallback = True
                 if current_item is not None or job.get("total") == 1:
                     failed_items.add(current_item or "1")
                     job["failed"] = len(failed_items)
@@ -1032,6 +1041,15 @@ def download_worker(job, url, quality, media_format="mp3", resolution=720):
             )
         if not media_files:
             reason = job.get("result_reason") or logger.last_error
+            if media_403_fallback:
+                fallback_summary = job.get("result_reason") or (
+                    "; ".join(f"{count} {category}" for category, count in fallback_failures.items())
+                    if fallback_failures else "the fallback did not return a usable video"
+                )
+                raise RuntimeError(
+                    f"{gate_error}. The anonymous video fallback could not produce an MP4 ({fallback_summary}). "
+                    "Check that the affected videos are publicly available, then retry. No MP4 files were produced."
+                )
             raise RuntimeError(
                 (("YouTube/yt-dlp reported: " + reason + ". ") if reason else "")
                 + f"No {media_ext.upper()} files were produced. The playlist may be empty, private, "
