@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🕹️ Arcade — Design Option 5 · 8-Bit Party</title>
+<style>
+  :root{--bg:#0e0a24;--mg:#ff3df0;--cy:#2ef0ff;--yl:#ffd93d;--gr:#4dff88;--ink:#ffd9f7;--mut:#9aa0cd;font-family:'Segoe UI',system-ui,'Courier New',monospace;color:var(--ink)}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;overflow-x:hidden;background:var(--bg) url('backgrounds/bg5-arcade.png') top center/cover no-repeat fixed}
+  .stars{position:fixed;inset:0;z-index:-2;overflow:hidden}
+  .star{position:absolute;font-size:10px;color:#fff;animation:tw 2.4s ease-in-out infinite}
+  @keyframes tw{0%,100%{opacity:.15}50%{opacity:1;text-shadow:0 0 8px #2ef0ff}}
+  .wrap{max-width:1000px;margin:0 auto;padding:26px 22px 60px}
+  marq{position:relative;display:block;overflow:hidden;background:linear-gradient(90deg,#ff3df0,#2ef0ff);color:#0e0a24;font-weight:900;letter-spacing:6px;text-align:center;font-size:13px;padding:8px 0;animation:flick .12s steps(2) infinite}
+  @keyframes flick{0%,100%{opacity:1}50%{opacity:.82}}
+  nav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:18px}
+  .brand{display:flex;align-items:center;gap:12px;font-size:21px;font-weight:900;letter-spacing:2px}
+  .pix{image-rendering:pixelated;animation:bob 1s steps(2) infinite}
+  @keyframes bob{0%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .chips a{color:var(--mut);text-decoration:none;border:1px solid #2a2c5a;padding:7px 12px;font-size:12.5px;font-weight:700}
+  .chips a:hover{color:#0e0a24;background:var(--mg)}
+  .hero{text-align:center;margin:36px auto 26px;position:relative;display:block;font-size:clamp(30px,5.4vw,50px);font-weight:900;letter-spacing:3px;line-height:1.12;text-transform:uppercase;text-shadow:0 0 26px #ff3df066}
+  .h2{color:var(--mg);display:inline-block;text-shadow:0 0 24px var(--mg)} 
+  .form{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  input[type=url]{flex:1;min-width:270px;max-width:500px;background:#171338;border:3px solid #2a2c5a;color:#fff;padding:16px 18px;font-size:15px;outline:none}
+  input:focus{border-color:var(--cy);box-shadow:0 0 0 4px #2ef0ff22}
+  .btn{background:var(--mg);border:0;border-bottom:6px solid var(--bg);color:#0e0a24;font-weight:900;font-size:16px;padding:15px 26px;cursor:pointer;font-family:inherit;letter-spacing:1px}
+  .btn:active{border-bottom-width:2px;transform:translateY(4px)}
+  .card{max-width:600px;margin:30px auto 0;border:3px solid #2a2c5a;background:#0e0a24cc;padding:16px;box-shadow:0 0 0 3px #0e0a24, 0 0 40px #ff3df033}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:12px;font-size:14px;font-weight:700}
+  .row:nth-child(odd){background:#17133866}
+  .row .go{color:var(--gr)} .row .pl{color:var(--yl)} .row .cy{color:var(--cy)}
+  .btn2{width:100%;background:var(--yl);border:0;border-bottom:6px solid #0e0a24;color:#231c02;font-weight:900;font-size:15px;padding:15px;cursor:pointer;margin:6px 0;font-family:inherit;letter-spacing:2px}
+  .btn2:active{transform:translateY(4px)}
+  .tt{text-align:center;color:#3a3f7a;margin-top:30px;font-size:13px}
+  .tt a{color:var(--cy);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="stars" aria-hidden="true">
+  <div class="star" style="top:8%;left:8%;animation-delay:-.3s">✦</div><div class="star" style="top:14%;left:78%;animation-delay:-1s">★</div>
+  <div class="star" style="top:22%;left:42%;animation-delay:-1.6s">✦</div><div class="star" style="top:34%;left:14%;animation-delay:-.8s">✦</div>
+  <div class="star" style="top:12%;left:60%;animation-delay:-2s">★</div><div class="star" style="top:30%;left:90%;animation-delay:-.5s">✦</div>
+  <div class="star" style="top:70%;left:6%;animation-delay:-1.2s">★</div><div class="star" style="top:78%;left:88%;animation-delay:-1.9s">✦</div>
+</div>
+
+<marquee>★★★ INSERT COIN — INSERT PLAYLIST — GET THE ZIP — ONE PLAYER — NEW HIGH SCORE ★★★</marquee>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">
+      <span class="pix"><svg width="44" height="44" viewBox="0 0 16 16">
+        <g fill="#2ef0ff"><rect x="1" y="5" width="6" height="4"/><rect y="5" width="2" height="11"/><rect x="6" width="2" height="11"/><rect x="9" y="3" width="6" height="4"/><rect x="9" y="7" width="2" height="12"/><rect x="13" height="2" width="9"/></g>
+        <g fill="#ff3df0"><rect x="3" y="12" width="4" height="4"/><rect x="7" y="9" width="2" height="7"/><rect x="9" y="6" width="2" height="3"/></g>
+      </svg></span>
+      ARCADE <span style="color:var(--cy)">RIP</span>
+    </div>
+    <div class="chips"><a href="designs/proposal-4-lofi.html">← 4</a><a href="designs/index.html">All 5</a></div>
+  </nav>
+
+  <div class="hero"><span class="h2">PLAYLIST</span> GO <span style="color:var(--gr)">★★★★★</span></div>
+  <div class="form"><input type="url" value="https://youtube.com/playlist?list=PLOBEuByax3HQZXEdaXUhB6jjviWXxvgRk"><button class="btn">▶ START</button></div>
+
+  <div class="card">
+    <div class="row"><span>1UP · SMACK MY BITCH UP</span><span class="go">CLEAR!</span></div>
+    <div class="row"><span>02 · I SEE YOU BABY</span><span class="pl">64%</span></div>
+    <div class="row"><span>003 · LET FOREVER BE</span><span></span></div>
+    <div class="row"><span>FINAL</span><span class="cy">ZIP ★</span></div>
+    <button class="btn2">⬇ COLLECT 359 MP3 ↓</button>
+  </div>
+  <div class="tt"><a href="designs/index.html">view all 5 options →</a></div>
+</div>
+</body>
+</html>

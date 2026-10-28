@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎀 Cozy — Design Option 4 · Pastel Lo-fi</title>
+<style>
+  :root{--bg:#fff7ec;--ink:#4a4158;--mut:#9b8fa8;--p:#ffb7d5;--m: #ffd9a0;--b:#a6d8ff;--l:#c9f0d1;--r:#ffe66d;
+    font-family:'Segoe UI',system-ui,'Comic Sans MS',sans-serif;color:var(--ink)}
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;overflow-x:hidden;background:linear-gradient(180deg,#fff7ec,#ffedf2) url('backgrounds/bg4-lofi.png') top center/cover no-repeat fixed}
+  .blob{position:fixed;border-radius:50%;z-index:-1;filter:blur(10px);opacity:.75;animation:wob 9s ease-in-out infinite}
+  .blob.bx{width:46vw;height:46vw;background:var(--b)} .blob.by{width:42vw;height:42vw;background:var(--p)}
+  .blob.bz{width:38vw;height:38vw;background:var(--m)}
+  @keyframes wob{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(4vw,-5vw) scale(1.12)}}
+  .floaty{position:fixed;font-size:26px;z-index:-1;animation:fl 6s ease-in-out infinite}
+  @keyframes fl{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-22px) rotate(10deg)}}
+  .ttk{position:relative;overflow:hidden;background:#fffdf7d9;border-bottom:2px solid #ffe1f0;padding:9px 0}
+  .ttk .marq{display:inline-block;white-space:nowrap;animation:marq 14s linear infinite;font-size:13px;font-weight:700;letter-spacing:2px}
+  @keyframes marq{to{transform:translateX(-50%)}}
+  .wrap{max-width:1000px;margin:0 auto;padding:30px 22px 60px}
+  nav{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .brand{display:flex;align-items:center;gap:12px;font-size:22px;font-weight:900}
+  .brand svg{animation:tilt 2.6s ease-in-out infinite}
+  @keyframes tilt{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(8deg)}}
+  .chips a{color:var(--mut);text-decoration:none;background:#fff;border:2px solid #ffe1f0;border-radius:999px;padding:7px 13px;font-size:12.5px}
+  .hero{text-align:center;margin:40px 0 26px}
+  .tag{font-weight:900;font-size:13px;letter-spacing:3px;color:#ff8fb8}
+  h1{font-size:clamp(32px,5.6vw,52px);margin:12px auto;line-height:1.08}
+  h1 .h{display:inline-block;animation:hop .5s ease-in-out infinite alternate}
+  @keyframes hop{to{transform:translateY(-8px)}}
+  .form{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  input[type=url]{flex:1;min-width:270px;max-width:520px;background:#fff;border:2px solid #ffe1f0;color:#4a4158;padding:16px 18px;border-radius:18px;font-size:15px;outline:none}
+  input:focus{border-color:var(--p);box-shadow:0 8px 0 #ffc9e0}
+  .btn{background:var(--p);border:3px solid #ff8fb8;color:#7d3c57;font-weight:900;font-size:16px;padding:15px 28px;border-radius:18px;box-shadow:0 6px 0 #ffa7c6;cursor:pointer;transition:.1s;position:relative}
+  .btn:active{box-shadow:0 2px 0 #ffa7c6;transform:translateY(4px)}
+  .card{max-width:560px;margin:26px auto 0;background:#fffdf7;border:2px solid #ffe1f0;border-radius:26px;padding:20px;box-shadow:0 10px 0 #ffe9f2}
+  .trk{display:flex;gap:12px;align-items:center;padding:10px;border-radius:14px;background:#fff7ec;font-size:14px}
+  .trk .e{font-size:15px} .trk .go{margin-left:auto;color:#5ec28c;font-weight:800}
+  .btn2{width:100%;margin-top:14px;background:linear-gradient(90deg,#ffd9a0,#ffb7d5);border:3px solid #ff8fb8;border-radius:16px;color:#7d3c57;font-weight:900;font-size:16px;padding:14px;box-shadow:0 6px 0 #ffcf5c;cursor:pointer}
+  .tt{text-align:center;color:var(--mut);margin-top:34px;font-size:13px}
+  .tt a{color:#ff8fb8;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div style="position:fixed;inset:0;z-index:-2;overflow:hidden" aria-hidden="true">
+  <div class="blob bx" style="top:-12vw;left:-10vw"></div>
+  <div class="blob by" style="bottom:-16vw;right:-8vw"></div>
+  <div class="blob bz" style="top:40%;right:-12vw"></div>
+  <div class="floaty" style="top:18%;left:10%">🧸</div><div class="floaty" style="top:24%;right:12%;animation-delay:-2s">🍒</div>
+  <div class="floaty" style="top:66%;left:16%;animation-delay:-4s">🎧</div><div class="floaty" style="bottom:20%;right:22%;animation-delay:-1s">⭐</div>
+</div>
+
+<div class="ttk"><span class="marq" style="width:200%">
+  🎀 super soft downloads 🎀 lofi playlists <span style="color:#ff8fb8">♥</span> one zip <span style="color:#ffb7d5">♥</span> made with love 🎀 super soft downloads 🎀 lofi playlists <span style="color:#ff8fb8">♥</span> one zip <span style="color:#ffb7d5">♥</span> made with love &nbsp;
+</span></div>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">
+      <svg width="44" height="44" viewBox="0 0 48 48" aria-label="cozy headphone logo">
+        <rect x="2" y="2" width="44" height="44" rx="15" fill="#fffdf7"/>
+        <rect x="2" y="2" width="44" height="44" rx="15" fill="none" stroke="#ffb7d5" stroke-width="2.5"/>
+        <path d="M15 22v2a9 9 0 0 0 18 0v-2" fill="none" stroke="#ff8fb8" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="14" cy="24" r="5" fill="#ffd9a0"/><circle cx="34" cy="24" r="4" fill="#a6d8ff"/>
+        <path d="M22 21l6 3-6 3z" fill="#7d3c57"/><path d="M24 30h4v8h-4zM22 37h8v4H22z" fill="#ff8fb8"/>
+      </svg>
+      Cozy
+    </div>
+    <div class="chips"><a href="designs/proposal-3-neon.html">← 3</a><a href="designs/proposal-5-arcade.html">5 →</a><a href="designs/index.html">All 5</a></div>
+  </nav>
+
+  <div class="hero">
+    <div class="tag">Design option 4 · Pastel Lo-fi</div>
+    <h1><span class="h">Grab</span> <span class="h" style="animation-delay:-.25s;color:#ff8fb8">every</span> <span class="h" style="animation-delay:-.4s;color:#ffcf5c">track</span> <span class="h" style="animation-delay:-.6s;color:#a6d8ff">♥</span> one zip!</h1>
+    <div class="form"><input type="url" value="https://youtube.com/playlist?list=PLOBEuByax3HQZXEdaXUhB6jjviWXxvgRk"><button class="btn">download plz ↓</button></div>
+  </div>
+
+  <div class="card">
+    <div class="trk"><span class="e">💿</span> Smack My Bitch Up <span class="go">done! ✔</span></div>
+    <div class="trk" style="margin-top:8px"><span class="e">💿</span> I See You Baby <span class="go">64%</span></div>
+    <div class="trk" style="margin-top:8px"><span class="e">🌙</span> Let Forever Be</div>
+    <button class="btn2">🎧 359 MP3 → one zip  🎡</button>
+  </div>
+  <div class="tt"><a href="designs/index.html">view all 5 options →</a></div>
+</div>
+</body>
+</html>

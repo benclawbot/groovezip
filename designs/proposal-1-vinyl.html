@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GrooveZip — Playlist → MP3 ZIP</title>
+<style>
+  :root{
+    --bg:#141019; --panel:#1b1723; --panel-2:#211c2c; --line:#2e2740;
+    --text:#f4f1f7; --mut:#a89fb8; --org:#ff8a2a; --org-2:#e9741a; --ok:#43d183;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:var(--text);
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); min-height:100vh; overflow-x:hidden; color:var(--text);}
+  /* flat: no gradients anywhere — solid colors only */
+  .wrap{max-width:820px; margin:0 auto; padding:26px 20px 64px;}
+  /* ---------- logo ---------- */
+  nav{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;}
+  .brand{display:flex; align-items:center; gap:12px; font-size:21px; font-weight:900; letter-spacing:.5px;}
+  .logo-disk{position:relative; width:44px; height:44px; flex:0 0 auto;}
+  .logo-disk .spin{position:absolute; inset:0; border-radius:50%; animation:spin 7s linear infinite;}
+  .logo-disk .mid{position:absolute; inset:0; border-radius:50%; background:var(--panel-2);}
+  .logo-disk .mid::after{content:''; position:absolute; inset:9px; border:2px solid var(--org); border-radius:50%;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .ph{display:flex; gap:10px; font-size:12.5px;}
+  .ph a{color:var(--mut); text-decoration:none; border:1px solid var(--line); padding:7px 13px; border-radius:999px; background:var(--panel);}
+  .ph a:hover{color:var(--text); border-color:var(--org);}
+  /* ---------- hero ---------- */
+  .hero{text-align:center; margin:38px 0 24px;}
+  .tag{font-size:12px; font-weight:800; letter-spacing:4px; text-transform:uppercase; color:var(--org);}
+  h1{font-size:clamp(30px,5.4vw,48px); margin:12px auto 10px; line-height:1.08; max-width:720px;}
+  h1 b{color:var(--org);}
+  .sub{color:var(--mut); max-width:520px; margin:0 auto 26px; font-size:15.5px; line-height:1.6;}
+  .form{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  input[type=url]{flex:1; min-width:270px; max-width:520px; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    padding:15px 18px; border-radius:14px; font-size:15px; outline:none;}
+  input[type=url]:focus{border-color:var(--org); box-shadow:0 0 0 4px #ff8a2a26;}
+  select{background:var(--panel); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:15px 12px; font-size:14px; outline:none;}
+  select:focus{border-color:var(--org);}
+  .btn{background:var(--org); border:0; color:#1d1206; font-weight:900; font-size:16px; padding:15px 26px; border-radius:14px; cursor:pointer; transition:background .15s, transform .1s;}
+  .btn:hover{background:var(--org-2);}
+  .btn:active{transform:translateY(2px);}
+  .btn.ghost{background:var(--panel); color:var(--text); border:1px solid var(--line); font-size:13px; padding:12px 18px;}
+  .btn:disabled{opacity:.55; cursor:not-allowed;}
+  /* ---------- info / progress ---------- */
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:18px;}
+  .card.hidden{display:none;}
+  .meta{display:flex; gap:4px 22px; flex-wrap:wrap; align-items:center; margin-bottom:12px; font-size:13.5px;}
+  .meta .k{color:var(--mut);} .meta b{font-size:15px;}
+  .meta .dot{margin:0 0 0 4px;}
+  #preview{background:var(--panel-2); border:1px solid var(--line); border-radius:12px; max-height:200px; overflow:auto; padding:8px 12px; font-size:13px; margin-top:10px;}
+  #preview ul{list-style:none; margin:0; padding:0;}
+  #preview li{padding:4px 0; color:var(--mut);}
+  #preview li::before{content:"♪  "; color:var(--org);}
+  #preview.hidden{display:none;}
+  .bar-box{height:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; overflow:hidden; margin-bottom:12px;}
+  .bar-box > div{height:100%; width:0; background:var(--org);}
+  .stat{font-size:14.5px; font-weight:700;}
+  #current{color:var(--mut); font-size:13px; margin:6px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #error{display:none; margin-top:12px; color:#ffb98a; background:#361f10; border:1px solid #5a3413; padding:10px 14px; border-radius:12px; font-size:14px; word-break:break-word;}
+  #download-link{display:none; align-items:center; gap:12px; margin-top:14px;}
+  #download-link a{background:var(--org); color:#1d1206; text-decoration:none; font-weight:900; padding:14px 22px; border-radius:14px;}
+  #download-link a:hover{background:var(--org-2);}
+  #toggle, #pl-info{display:none;}
+  .ft{text-align:center; color:#594f6b; font-size:12.5px; margin-top:30px; line-height:1.7;}
+  .ft a{color:var(--mut); text-decoration:none;} .ft a:hover{color:var(--org);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">
+      <span class="logo-disk">
+        <svg class="spin" viewBox="0 0 44 44" width="44" height="44" aria-label="GrooveZip vinyl logo">
+          <g fill="none" stroke="#3a3152" stroke-width="1.3">
+            <circle cx="22" cy="22" r="9"/><circle cx="22" cy="22" r="14.5"/><circle cx="22" cy="22" r="19"/>
+          </g>
+          <circle cx="22" cy="22" r="21" fill="none" stroke="var(--org)" stroke-width="2.4"/>
+          <circle cx="22" cy="22" r="4.4" fill="var(--org)"/>
+        </svg>
+      </span> GrooveZip
+    </div>
+    <div class="ph"><a href="index.html">All 5 designs</a></div>
+  </nav>
+
+  <div class="hero">
+    <div class="tag">Pick a playlist · get one sweet ZIP 🎧</div>
+    <h1>Rip the <b>whole playlist</b></h1>
+    <p class="sub">Paste a YouTube playlist → every track saved as MP3, zipped, yours.</p>
+    <div class="form">
+      <input type="url" id="url" placeholder="https://youtube.com/playlist?list=PLOBEuByax3HQZXEdaXUhB6jjviWXxvgRk" autocomplete="off">
+      <select id="quality" title="MP3 bitrate">
+        <option value="128">128 kbps</option><option value="192" selected>192 kbps</option>
+        <option value="256">256 kbps</option><option value="320">320 kbps</option>
+      </select>
+      <button class="btn" id="check-btn">Check</button>
+      <button class="btn" id="dl-btn">⬇ Download ZIP</button>
+    </div>
+    <div id="error"></div>
+  </div>
+
+  <div class="card hidden" id="pl-info">
+    <div class="meta"><span><span class="k">Playlist</span> <b id="pl-title">—</b></span><span><span class="k">Tracks</span> <b id="pl-count">—</b></span><span class="dot">🎵 <b id="pl-prevn">0</b></span></div>
+    <button class="btn ghost" id="toggle">Show track list</button>
+    <div id="preview" class="hidden"></div>
+  </div>
+
+  <div class="card hidden" id="progress">
+    <div class="bar-box"><div id="bar-fill"></div></div>
+    <div class="stat"><span id="stat-text">Starting…</span> <span id="stat-extra"></span></div>
+    <div id="current"></div>
+    <div id="download-link"><a id="zip-href" href="#">⬇ Save the ZIP</a><span id="zip-meta"></span></div>
+  </div>
+
+  <div class="ft">
+    Vinyl edition · no gradients · solid colors · runs 100% local on your machine<br>
+    <a href="index.html">other designs</a> · <a href="README.md">docs</a>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let currentUrl = "";
+
+$("check-btn").onclick = check;
+$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
+$("toggle").onclick = () => { $("preview").classList.toggle("hidden"); };
+
+function showError(m){ const el=$("error"); el.textContent=m; el.style.display=m?"block":"none"; }
+
+async function check(){
+  showError("");
+  const url=$("url").value.trim();
+  if(!url) return showError("Please paste a URL first.");
+  $("check-btn").disabled=true; $("check-btn").textContent="Checking…";
+  try{
+    const res = await fetch("/api/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({url}) });
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || "HTTP "+res.status);
+    currentUrl = url;
+    $("pl-title").textContent = d.title || "(unknown)";
+    $("pl-count").textContent = d.is_playlist ? (d.count ?? "?") + " tracks" : "1 (single video)";
+    const en = d.entries || [];
+    $("pl-prevn").textContent = d.count ?? en.length;
+    $("preview").innerHTML = en.length ? "<ul>"+en.map(e=>"<li>"+esc(e.title||"")+"</li>").join("")+"</ul>" : "";
+    $("pl-info").classList.remove("hidden");
+  }catch(err){ showError("Check failed: "+err.message); }
+  finally{ $("check-btn").disabled=false; $("check-btn").textContent="Check"; }
+}
+
+async function startDownload(){
+  const url = currentUrl || $("url").value.trim();
+  if(!url) return showError("Please paste a URL.");
+  showError(""); currentUrl = url;
+  $("dl-btn").disabled = true; $("pl-info").classList.remove("hidden"); $("preview").classList.add("hidden");
+  const res = await fetch("/api/download", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ url, quality: parseInt($("quality").value,10) }) });
+  const d = await res.json();
+  if(!res.ok || d.error){ showError("Failed to start: "+(d.error||res.status)); $("dl-btn").disabled=false; return; }
+  poll(d.id);
+}
+$("dl-btn").onclick = startDownload;
+
+function poll(jobId){
+  $("progress").classList.remove("hidden");
+  $("stat-text").textContent="Starting…"; $("stat-extra").textContent=""; $("current").textContent="";
+  $("bar-fill").style.width="0%";
+  $("download-link").style.display="none";
+  const t = setInterval(async ()=>{
+    try{
+      const res = await fetch("/api/status?id="+encodeURIComponent(jobId));
+      const j = await res.json();
+      if(j.error) throw new Error(j.error);
+      const tot = j.total || 0, done = j.completed;
+      $("bar-fill").style.width = Math.min(100, tot ? Math.round(done/tot*100) : 0) + "%";
+      $("stat-text").textContent = j.total==null ? (j.state) : done+" / "+tot+" MP3"+(done>1?"s":"")+" ready";
+      $("stat-extra").textContent = j.failed ? "("+j.failed+" failed)" : "";
+      $("current").textContent = j.current ? "♪ "+j.current : "";
+      if(j.state==="done"){ clearInterval(t);
+        $("bar-fill").style.width="100%";
+        $("stat-text").textContent = "Done — "+done+" MP3"+(done>1?"s":"");
+        $("zip-meta").textContent = j.zip_size ? " · "+(j.zip_size/1048576).toFixed(1)+" MB" : "";
+        $("zip-href").href = "/api/zip?id="+encodeURIComponent(jobId);
+        $("download-link").style.display = "flex"; $("dl-btn").disabled=false;
+      } else if(j.state==="error"){ clearInterval(t); $("stat-text").textContent="Error"; showError("Download failed: "+(j.error||"unknown")); $("dl-btn").disabled=false; }
+    }catch(err){ clearInterval(t); showError("Status: "+err.message); $("dl-btn").disabled=false; }
+  }, 1000);
+}
+function esc(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+</script>
+</body>
+</html>
